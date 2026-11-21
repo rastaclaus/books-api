@@ -6,7 +6,7 @@
 
 - Освоить базовую навигацию и команды инспекции в TUI `jcode`: `/help`, `/model`, `/info`, `/context`, `/git`, `/commit`.
 - Понять, как `jcode` собирает системный промпт сессии и почему корневой файл **`./AGENTS.md`** служит главным командным контрактом проекта.
-- Задать архитектурные границы `books-api` в `AGENTS.md`, убедиться через `/context`, что агент их видит, и создать фундамент домена (настройку `pytest` и базовую иерархию `DomainError`).
+- Задать архитектурные границы `books-api` и обязательные ворота качества (`just check` и `just test`) в `AGENTS.md`, убедиться через `/context`, что агент их видит, настроить максимально строгий непротиворечивый контур `ruff` + `ty` + `pytest` с `justfile` и создать базовую иерархию `DomainError`.
 
 ---
 
@@ -22,7 +22,7 @@
 
 Два критически важных правила:
 
-- **`AGENTS.md` хранится в Git и разделяется со всей командой.** Туда пишут инварианты архитектуры, стек проекта, команды сборки/тестов и жёсткие ограничения («чего делать нельзя»).
+- **`AGENTS.md` хранится в Git и разделяется со всей командой.** Туда пишут инварианты архитектуры, стек проекта, команды проверки качества (`just check`, `just test`) и жёсткие ограничения («чего делать нельзя»).
 - **Слои промпта фиксируются при создании сессии.** Если вы создали или отредактировали `./AGENTS.md`, уже запущенная сессия сохранит старый снимок промпта (чтобы не ломать prompt-кэш посреди диалога). Чтобы изменения вступили в силу, начните новую сессию (`/clear` или перезапуск `jcode`).
 
 ---
@@ -61,11 +61,12 @@ jcode
 Создай в корне проекта файл AGENTS.md для учебного проекта books-api (каталог свободной раздачи электронных книг).
 
 Зафиксируй в AGENTS.md следующие обязательные правила проекта:
-1. Область разработки: мы реализуем ТОЛЬКО чистую доменную область в пакете `src/books_api/domain/`. Никаких HTTP-фреймворков (FastAPI/Flask), никаких ORM/SQL и внешних runtime-зависимостей.
-2. Стек и стиль: Python 3.14+, строгая типизация (аннотации типов везде, `dataclass(frozen=True, slots=True)` для Value Objects, `Enum` / `StrEnum`, `typing.Protocol` для портов репозиториев).
-3. Управление пакетами и тесты: использовать исключительно `uv` (`uv add --dev pytest`, запуск тестов через `uv run pytest`). Не вызывать голый `pip` или системный `pytest` напрямую.
-4. Доменные ошибки: любые нарушения бизнес-инвариантов домена должны выбрасывать осмысленные исключения, унаследованные от базового `DomainError`, а не общие `Exception` или `AssertionError`.
-5. Код и идентификаторы пишем на английском, краткие пояснения в ответах пользователю даём на русском.
+1. Область разработки: мы реализуем ТОЛЬКО чистую доменную область в пакете `src/books_api/domain/`. Никаких HTTP-фреймворков (FastAPI/Flask), никаких ORM/SQL и внешних runtime-зависимостей (`dependencies = []` в `pyproject.toml`).
+2. Стек и стиль: Python 3.14+, строгая типизация (аннотации типов везде, `dataclass(frozen=True, slots=True)` для Value Objects, `Enum` / `StrEnum`, `typing.Protocol` для портов репозиториев, `@override` при переопределении методов).
+3. Управление пакетами: использовать исключительно `uv` (`uv add --dev pytest ruff ty`, запуск инструментов через `uv run ...` или рецепты `justfile`). Не вызывать голый `pip` или системные `pytest` / `ruff` / `ty` напрямую.
+4. Обязательные ворота качества перед сдачей задачи: перед завершением любого задания агент ОБЯЗАН прогнать `just check` (линтер `ruff check`, проверка форматирования `ruff format --check` и строгий тайпчекер `ty check`) и `just test` (прогон `pytest`), добившись нулевого числа замечаний и зелёных тестов.
+5. Доменные ошибки: любые нарушения бизнес-инвариантов домена должны выбрасывать осмысленные исключения, унаследованные от базового `DomainError`, а не общие `Exception` или `AssertionError`.
+6. Код и идентификаторы пишем на английском, краткие пояснения в ответах пользователю даём на русском.
 ```
 
 Дождитесь, пока `jcode` прочитает `pyproject.toml` и запишет `AGENTS.md`.
@@ -80,21 +81,99 @@ jcode
 
 Найдите в выводе `/context` подключённый блок `./AGENTS.md`. Теперь каждая новая сессия (и каждый будущий воркер в проекте) с первого же хода знает правила `books-api` без повторных объяснений в промптах.
 
-### Шаг 4. Первая боевая задача: настройка `pytest` и иерархия `DomainError`
+### Шаг 4. Первая боевая задача: строгие `ruff` + `ty`, `justfile` и иерархия `DomainError`
 
-Проверим, как агент следует только что принятому контракту, не подсказывая ему в промпте ни про `uv`, ни про путь `src/books_api/domain/`:
+Проверим, как агент следует только что принятому контракту, и сразу выстроим в проекте максимально строгий, но непротиворечивый контур проверок (`ruff`, `ty`, `pytest`, `justfile`):
 
 ```text
-Подключи pytest для разработки и создай стартовый фундамент доменного слоя:
-базовое исключение DomainError и специализированные ошибки InvalidBookStateError,
-LicenseViolationError и QuotaExceededError, а также первые юнит-тесты для них.
-Убедись, что все тесты проходят.
+1. Подключи dev-зависимости `pytest`, `ruff` и `ty` (оставив runtime-зависимости пустыми).
+2. Настрой в `pyproject.toml` `pytest`, `ruff` и `ty` под Python 3.14 максимально строго, но без взаимных противоречий:
+   - в `[tool.ruff]`: `target-version = "py314"`, `line-length = 120`, `src = ["src", "tests"]`;
+   - в `[tool.ruff.lint]`: `select = ["ALL"]` с точечным `ignore` для правил, конфликтующих с `ruff format`, друг с другом, Python 3.14 или русскоязычным контекстом (`COM812`, `ISC001`, `D203`, `D213`, `CPY001`, `D`, `RUF001`, `RUF002`, `RUF003`, `EM101`, `EM102`, `TRY003`, `TC001`, `TC002`, `TC003`), плюс разумные `per-file-ignores`: `T201` для `src/books_api/__init__.py`, `S101`, `PLR2004`, `SLF001`, `FBT003`, `INP001` для `tests/**`, а также `EXE001`, `INP001`, `T201` для будущих утилит в `tools/**` и `scripts/**`;
+   - в `[tool.ty]`: `environment.python-version = "3.14"`, `terminal.error-on-warning = true`, `rules = { all = "error" }` и override для `tests/**` с `dynamic-function-decorator-return = "ignore"` (для декораторов `@pytest.mark.parametrize` и фикстур).
+3. Создай в корне `justfile` с рецептами:
+   - `default: check test`;
+   - `check` (`uv run ruff check .`, `uv run ruff format --check .`, `uv run ty check`);
+   - `fmt` (`uv run ruff check --fix .` и `uv run ruff format .`);
+   - `test *args` (`uv run pytest -q {{args}}`).
+4. Создай стартовый фундамент доменного слоя: базовое исключение `DomainError` и специализированные ошибки `InvalidBookStateError`, `LicenseViolationError` и `QuotaExceededError`, экспортируй их в `src/books_api/domain/__init__.py` с явным `__all__` и напиши первые юнит-тесты.
+Перед завершением прогони `just check` и `just test`.
 ```
 
 Понаблюдайте за действиями агента в TUI:
 
 - Агент сам положит код в `src/books_api/domain/` (например, `src/books_api/domain/errors.py` и `__init__.py`), потому что прочитал `AGENTS.md`.
-- Для установки и запуска тестов он использует `uv add --dev pytest` и `uv run pytest`, не трогая runtime-зависимости `dependencies = []` в `pyproject.toml`.
+- Для установки пакетов он использует `uv add --dev pytest ruff ty`, не трогая `dependencies = []` в `pyproject.toml`.
+- Перед тем как сдать задачу, агент сам вызовет `just check` и `just test`: любые огрехи форматирования, импортов или аннотаций типов мгновенно отсекаются связкой `ruff` (`ALL`) и `ty` (`all = "error"`).
+
+<details>
+<summary>Эталонный ориентир для <code>justfile</code> и секций <code>[tool.*]</code> в <code>pyproject.toml</code> (нажмите, чтобы сверить)</summary>
+
+**`justfile`:**
+```just
+default: check test
+
+check:
+    uv run ruff check .
+    uv run ruff format --check .
+    uv run ty check
+
+fmt:
+    uv run ruff check --fix .
+    uv run ruff format .
+
+test *args:
+    uv run pytest -q {{args}}
+```
+
+**Ключевые секции `pyproject.toml`:**
+```toml
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers --strict-config"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", "ISC001",        # конфликтуют с ruff format
+    "D203", "D213", "D",       # конфликтующие/избыточные правила docstrings
+    "CPY001",                  # без обязательных copyright-шапок
+    "RUF001", "RUF002", "RUF003", # кириллица в строках/комментариях
+    "EM101", "EM102", "TRY003",   # лаконичные сообщения в raise DomainError(...)
+    "TC001", "TC002", "TC003",    # в Python 3.14 (PEP 649) аннотации ленивые по умолчанию
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/books_api/__init__.py" = ["T201"]
+"tests/**" = ["S101", "PLR2004", "SLF001", "FBT003", "INP001"]
+"tools/**" = ["EXE001", "INP001", "T201"]
+"scripts/**" = ["EXE001", "INP001", "T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["books_api"]
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.terminal]
+error-on-warning = true
+
+[tool.ty.rules]
+all = "error"
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+dynamic-function-decorator-return = "ignore"
+```
+</details>
 
 ### Шаг 5. Сохраните первый этап через `/commit`
 
@@ -104,7 +183,7 @@ LicenseViolationError и QuotaExceededError, а также первые юнит
 /commit
 ```
 
-Агент проверит `git status` и `git diff`, сформирует осмысленное сообщение коммита и зафиксирует `AGENTS.md`, обновлённый `pyproject.toml`, `src/books_api/domain/` и `tests/`.
+Агент проверит `git status` и `git diff`, сформирует осмысленное сообщение коммита и зафиксирует `AGENTS.md`, `justfile`, обновлённый `pyproject.toml`, `uv.lock`, `src/books_api/domain/` и `tests/`.
 
 ---
 
@@ -113,15 +192,16 @@ LicenseViolationError и QuotaExceededError, а также первые юнит
 Выполните в терминале (или через `!`-команду / второй терминал):
 
 ```bash
-uv run pytest
+just check
+just test
 git log -n 2 --oneline
 ```
 
 Чеклист результата:
 
-- [ ] В корне лежит `AGENTS.md`, и команда `/context` в новой сессии показывает его содержимое внутри системного промпта.
-- [ ] В `pyproject.toml` список `dependencies` остался пустым (`[]`), а `pytest` добавлен в dev-зависимости (`[dependency-groups]`).
-- [ ] В `src/books_api/domain/` создана иерархия `DomainError`, и `uv run pytest` завершается зелёным статусом.
+- [ ] В корне лежат `AGENTS.md` и `justfile`, а команда `/context` в новой сессии показывает содержимое `AGENTS.md` внутри системного промпта.
+- [ ] В `pyproject.toml` список `dependencies` остался пустым (`[]`), а `pytest`, `ruff` и `ty` добавлены в dev-зависимости (`[dependency-groups]`) и строго сконфигурированы без конфликтов между форматтером, линтером и тайпчекером.
+- [ ] В `src/books_api/domain/` создана иерархия `DomainError`, и обе команды `just check` и `just test` завершаются с кодом `0`.
 
 ---
 
@@ -130,6 +210,7 @@ git log -n 2 --oneline
 | Команда / Файл | Назначение |
 |---|---|
 | `./AGENTS.md` | Проектный контракт для всех агентов в репозитории (коммитится в Git) |
+| `./justfile` (`just check`, `just test`) | Единые ворота качества проекта (`ruff` + `ty` + `pytest`) перед сдачей задач |
 | `/context` | Показать собранный системный промпт, активные тулы и размер контекста (без вызова LLM) |
 | `/info` | Показать провайдера, модель, ID сессии и статистику токенов |
 | `/model` | Открыть интерактивный переключатель провайдера и модели |

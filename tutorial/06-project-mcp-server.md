@@ -35,20 +35,32 @@ MCP позволяет подключить к `jcode` любой внутрен
 
 ### Шаг 1. Напишите микро-сервер MCP справочника свободных лицензий
 
-Чтобы не тянуть в наш чистый проект сторонние пакеты, напишем в `tools/license_mcp.py` самодостаточный `stdio` MCP-сервер в ~70 строк на чистом Python 3.14. Он отдаёт агенту официальные идентификаторы SPDX, правила атрибуции, `ShareAlike` и совместимости производных сборок для `books-api`.
+Чтобы не тянуть в наш чистый проект сторонние пакеты, напишем в `tools/license_mcp.py` самодостаточный `stdio` MCP-сервер на чистом Python 3.14 (полностью проходящий наш строгий контур `just check`: `ruff` + `ty`). Он отдаёт агенту официальные идентификаторы SPDX, правила атрибуции, `ShareAlike` и совместимости производных сборок для `books-api`.
 
 Создайте файл `tools/license_mcp.py`:
 
 ```python
 #!/usr/bin/env python3
 """Локальный stdio MCP-сервер справочника свободных лицензий для books-api."""
+
 import json
 import os
 import sys
+from typing import TypedDict
+
+
+class LicenseInfo(TypedDict):
+    spdx: str
+    requires_attribution: bool
+    share_alike: bool
+    allows_commercial: bool
+    can_bundle_with: list[str]
+    notice_template: str
+
 
 STRICT_MODE = os.environ.get("BOOKS_LICENSE_POLICY", "strict")
 
-LICENSES = {
+LICENSES: dict[str, LicenseInfo] = {
     "PUBLIC_DOMAIN": {
         "spdx": "CC-PDDC",
         "requires_attribution": False,
@@ -101,48 +113,57 @@ TOOLS = [
 ]
 
 
-def reply(req_id: object, result: dict) -> None:
+def reply(req_id: int | str, result: dict[str, object]) -> None:
     sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": req_id, "result": result}) + "\n")
     sys.stdout.flush()
 
 
-for raw in sys.stdin:
-    line = raw.strip()
-    if not line:
-        continue
-    msg = json.loads(line)
-    req_id = msg.get("id")
-    method = msg.get("method")
-    if req_id is None:
-        continue
-    if method == "initialize":
-        reply(
-            req_id,
-            {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {"tools": {}},
-                "serverInfo": {"name": "books-license-catalog", "version": "0.1.0"},
-            },
-        )
-    elif method == "tools/list":
-        reply(req_id, {"tools": TOOLS})
-    elif method == "tools/call":
-        args = msg.get("params", {}).get("arguments", {})
-        code = str(args.get("code", "")).strip().upper()
-        info = LICENSES.get(code)
-        payload = (
-            {"allowed_in_catalog": True, "policy_mode": STRICT_MODE, "code": code, **info}
-            if info
-            else {
-                "allowed_in_catalog": False,
-                "policy_mode": STRICT_MODE,
-                "code": code,
-                "reason": "Non-free license (e.g. NC/ND or proprietary) is forbidden in books-api.",
-            }
-        )
-        reply(req_id, {"content": [{"type": "text", "text": json.dumps(payload, indent=2)}]})
-    else:
-        reply(req_id, {})
+def main() -> None:
+    for raw in sys.stdin:
+        line = raw.strip()
+        if not line:
+            continue
+        msg: object = json.loads(line)
+        if not isinstance(msg, dict):
+            continue
+        req_id = msg.get("id")
+        method = msg.get("method")
+        if not isinstance(req_id, (int, str)):
+            continue
+        if method == "initialize":
+            reply(
+                req_id,
+                {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "books-license-catalog", "version": "0.1.0"},
+                },
+            )
+        elif method == "tools/list":
+            reply(req_id, {"tools": TOOLS})
+        elif method == "tools/call":
+            params = msg.get("params")
+            args = params.get("arguments") if isinstance(params, dict) else None
+            raw_code = args.get("code", "") if isinstance(args, dict) else ""
+            code = str(raw_code).strip().upper()
+            info = LICENSES.get(code)
+            payload: dict[str, object] = (
+                {"allowed_in_catalog": True, "policy_mode": STRICT_MODE, "code": code, **info}
+                if info is not None
+                else {
+                    "allowed_in_catalog": False,
+                    "policy_mode": STRICT_MODE,
+                    "code": code,
+                    "reason": "Non-free license (e.g. NC/ND or proprietary) is forbidden in books-api.",
+                }
+            )
+            reply(req_id, {"content": [{"type": "text", "text": json.dumps(payload, indent=2)}]})
+        else:
+            reply(req_id, {})
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 ### Шаг 2. Зарегистрируйте сервер в `.jcode/mcp.json` с подстановкой окружения
@@ -195,7 +216,7 @@ Tools: 1
 На основе точных SPDX-идентификаторов и шаблонов `notice_template`, полученных от MCP-сервера, создай модуль `src/books_api/domain/license_policy.py`:
 1. Функцию/сервис генерации обязательного лицензионного уведомления для книги `build_license_notice(book: Book) -> str` (подставляющую имена авторов книги в шаблон для лицензий с атрибуцией).
 2. Функцию расчёта результирующей лицензии сборника книг `resolve_anthology_license(books: Sequence[Book]) -> LicenseType` (если в сборнике есть хотя бы одна книга `CC_BY_SA`, весь сборник обязан распространяться под `CC_BY_SA`, иначе если есть `CC_BY` -> `CC_BY`, иначе `CC0` / `PUBLIC_DOMAIN`; пустой список отвергать `DomainError`).
-Добавь юнит-тесты в `tests/test_license_policy.py` и прогони `uv run pytest -q`.
+Добавь юнит-тесты в `tests/test_license_policy.py` и прогони `just check` и `just test`.
 ```
 
 Посмотрите в TUI: агент вызовет инструмент `mcp` (`server="books-licenses"`, `tool="inspect_free_license"`), получит точные строки `spdx` и `notice_template` прямо из вашего локального сервера и перенесёт их в доменную логику и тесты без галлюцинаций!
@@ -214,14 +235,15 @@ Tools: 1
 
 ```bash
 jcode mcp test books-licenses
-uv run pytest -q
+just check
+just test
 ```
 
 Чеклист результата:
 
 - [ ] В `.jcode/mcp.json` подключён `books-licenses`, и `jcode mcp test books-licenses` проходит успешно.
 - [ ] Создан `src/books_api/domain/license_policy.py` с генерацией текста лицензии и расчётом лицензии антологии (`ShareAlike` доминирует над `CC_BY`, а `CC_BY` над `CC0`/`PUBLIC_DOMAIN`).
-- [ ] Все тесты проекта зелёные.
+- [ ] Весь код (включая `tools/license_mcp.py`) чисто проходит `just check` и `just test`.
 
 ---
 

@@ -84,10 +84,13 @@ jcode --quiet --no-update --no-selfdev \
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "1/2 Running unit tests via uv..."
-uv run pytest -q
+echo "1/3 Running linters and strict type check (just check)..."
+just check
 
-echo "2/2 Running read-only jcode architectural audit..."
+echo "2/3 Running unit tests (just test)..."
+just test
+
+echo "3/3 Running read-only jcode architectural audit..."
 verdict=$(
   jcode --quiet --no-update --no-selfdev \
     --tools read,agentgrep \
@@ -120,13 +123,13 @@ chmod +x scripts/ci_domain_audit.sh
 Поздравляем! Вы с нуля построили чистую, протестированную доменную модель `books-api` и на практике освоили полный арсенал `jcode`:
 
 ### Настройки уровня проекта в репозитории
-- [x] **`./AGENTS.md`**: главный командный контракт проекта и границ архитектуры (Урок 01).
+- [x] **`./AGENTS.md`** и **`./justfile`**: главный командный контракт проекта, строгая безконфликтная связка `ruff` + `ty` + `pytest` и обязательные ворота `just check` / `just test` (Урок 01).
 - [x] **`./.jcode/prompt-overlay.md`** и **`./.jcode/preferred-tools.md`**: настройка стиля моделирования, выбора инструментов и бережная работа с prompt-кэшем (Урок 02).
 - [x] **Проектная память (`memory` со `scope="project"`)**: долговременное хранение продуктовых решений между сессиями (Урок 04).
 - [x] **`./.jcode/skills/<name>/SKILL.md`**: лениво подгружаемые проектные скиллы со своим slash-именем и автоактивацией (Урок 05).
 - [x] **`./.jcode/mcp.json`**: подключение локальных и удалённых проектных MCP-серверов с отладкой через `jcode mcp test` (Урок 06).
 - [x] **`./.jcode/swarm-prompt.md`**: правила координации параллельных воркеров роя в одном репозитории (Урок 07).
-- [x] **Проектные Lifecycle Hooks (`JCODE_HOOK_PRE_TOOL`, `JCODE_HOOK_POST_TOOL_FEEDBACK`)**: железная защита инвариантов проекта и автоподача `pytest` в контекст модели (Урок 09).
+- [x] **Проектные Lifecycle Hooks (`JCODE_HOOK_PRE_TOOL`, `JCODE_HOOK_POST_TOOL_FEEDBACK`)**: железная защита инвариантов проекта и автоподача `just check && just test` в контекст модели (Урок 09).
 
 ### Продвинутые режимы управления и контроля качества
 - [x] Планирование без правок (`/plan`), трекинг фаз (`/todos`), **Soft Interrupt** на лету, боковые ветки `/btw` и откат `/rewind` (Урок 03).

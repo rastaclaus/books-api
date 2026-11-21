@@ -45,45 +45,59 @@
 Создайте папку `scripts/hooks/` и положите в неё два исполняемых скрипта.
 
 **1. Воротный хук чистоты домена `scripts/hooks/domain_purity_gate.py`** (`pre_tool`):
-Блокирует с кодом `2` попытки записать в `src/books_api/domain/` запрещённые внешние импорты (`fastapi`, `flask`, `sqlalchemy`, `sqlite3`, `requests`, `httpx`), а также запрещает вызывать сырой `pip install` через `bash`:
+Блокирует с кодом `2` попытки записать в `src/books_api/domain/` запрещённые внешние импорты (`fastapi`, `flask`, `sqlalchemy`, `sqlite3`, `requests`, `httpx`), а также запрещает вызывать сырой `pip install` через `bash` (скрипт написан так, чтобы сам без замечаний проходить `just check`):
 
 ```python
 #!/usr/bin/env python3
 """pre_tool gate: защищает архитектурную чистоту src/books_api/domain/."""
+
 import json
 import os
 import re
 import sys
 
-tool = os.environ.get("JCODE_HOOK_TOOL_NAME", "")
-raw = sys.stdin.read()
-if not raw.strip():
-    sys.exit(0)
+FORBIDDEN_PACKAGES = (
+    "fastapi",
+    "flask",
+    "django",
+    "sqlalchemy",
+    "sqlite3",
+    "httpx",
+    "requests",
+)
 
-data = json.loads(raw)
 
-if tool == "bash":
-    cmd = data.get("command", "")
-    if re.search(r"(^|\s)pip3?\s+install\b", cmd):
-        sys.stderr.write("Blocked by project hook: use 'uv add' instead of 'pip install'.\n")
-        sys.exit(2)
+def main() -> None:
+    tool = os.environ.get("JCODE_HOOK_TOOL_NAME", "")
+    raw = sys.stdin.read()
+    if not raw.strip():
+        sys.exit(0)
 
-if tool in {"write", "edit", "apply_patch"}:
-    payload_text = json.dumps(data, ensure_ascii=False)
-    if "src/books_api/domain/" in payload_text:
-        forbidden = ("fastapi", "flask", "django", "sqlalchemy", "sqlite3", "httpx", "requests")
-        for pkg in forbidden:
-            if re.search(rf"\b(import\s+{pkg}|from\s+{pkg}\b)", payload_text):
-                sys.stderr.write(
-                    f"Blocked by domain_purity_gate: '{pkg}' is forbidden inside pure domain layer.\n"
-                )
-                sys.exit(2)
+    data: object = json.loads(raw)
+    if not isinstance(data, dict):
+        sys.exit(0)
 
-sys.exit(0)
+    if tool == "bash":
+        cmd = str(data.get("command", ""))
+        if re.search(r"(^|\s)pip3?\s+install\b", cmd):
+            sys.stderr.write("Blocked by project hook: use 'uv add' instead of 'pip install'.\n")
+            sys.exit(2)
+
+    if tool in {"write", "edit", "apply_patch"}:
+        payload_text = json.dumps(data, ensure_ascii=False)
+        if "src/books_api/domain/" in payload_text:
+            for pkg in FORBIDDEN_PACKAGES:
+                if re.search(rf"\b(import\s+{pkg}|from\s+{pkg}\b)", payload_text):
+                    sys.stderr.write(f"Blocked by domain_purity_gate: '{pkg}' is forbidden inside pure domain layer.\n")
+                    sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-**2. Хук мгновенного прогона тестов `scripts/hooks/pytest_feedback.sh`** (`post_tool_feedback`):
-Если агент изменил любой `.py`-файл в `src/books_api/` или `tests/`, хук автоматически запускает `uv run pytest -q` и прикладывает результат прямо к ответу тула `write`/`edit`/`apply_patch`:
+**2. Хук мгновенной обратной связи линтеров и тестов `scripts/hooks/quality_feedback.sh`** (`post_tool_feedback`):
+Если агент изменил любой `.py`-файл, хук автоматически прогоняет `just check` и `just test` и прикладывает их вывод прямо к ответу тула `write`/`edit`/`apply_patch` (агент физически видит замечания `ruff`/`ty`/`pytest` сразу же после правки!):
 
 ```bash
 #!/usr/bin/env bash
@@ -92,15 +106,15 @@ case "${JCODE_HOOK_TOOL_NAME:-}" in
   *) exit 0 ;;
 esac
 
-run_tests=0
+run_checks=0
 while IFS= read -r path; do
   case "$path" in
-    *.py) run_tests=1 ;;
+    *.py) run_checks=1 ;;
   esac
 done <<<"${JCODE_HOOK_TOUCHED_PATHS:-}"
 
-if [ "$run_tests" -eq 1 ]; then
-  uv run pytest -q
+if [ "$run_checks" -eq 1 ]; then
+  just check && just test
 fi
 exit 0
 ```
@@ -108,7 +122,7 @@ exit 0
 Сделайте оба скрипта исполняемыми:
 
 ```bash
-chmod +x scripts/hooks/domain_purity_gate.py scripts/hooks/pytest_feedback.sh
+chmod +x scripts/hooks/domain_purity_gate.py scripts/hooks/quality_feedback.sh
 ```
 
 > **Обратите внимание на деталь документации `jcode`:** команда хука парсится в shell-стиле, но запускается напрямую без промежуточного `/bin/sh -c`, поэтому у обоих файлов обязательно должен быть шебанг (`#!/usr/bin/env ...`) и бит исполнения `chmod +x`.
@@ -119,7 +133,7 @@ chmod +x scripts/hooks/domain_purity_gate.py scripts/hooks/pytest_feedback.sh
 
 ```bash
 JCODE_HOOK_PRE_TOOL="./scripts/hooks/domain_purity_gate.py" \
-JCODE_HOOK_POST_TOOL_FEEDBACK="./scripts/hooks/pytest_feedback.sh" \
+JCODE_HOOK_POST_TOOL_FEEDBACK="./scripts/hooks/quality_feedback.sh" \
 jcode
 ```
 
@@ -152,7 +166,7 @@ jcode
 
 Посмотрите на синергию двух механизмов:
 
-1. После каждой правки `edit`/`apply_patch` ваш хук `post_tool_feedback` автоматически прогоняет `uv run pytest -q` и отдаёт статус тестов в `[post_tool_feedback]` без отдельного вызова `bash`.
+1. После каждой правки `edit`/`apply_patch` ваш хук `post_tool_feedback` автоматически прогоняет `just check && just test` и отдаёт статус `ruff`, `ty` и `pytest` в `[post_tool_feedback]` без лишних ручных вызовов `bash`.
 2. Сам цикл `/refactor` делит работу на аккуратные шаги и вызывает независимого read-only сабагента для проверки каждого значимого батча!
 
 По завершении рефакторинга сохраните скрипты хуков и обновлённый домен в Git:
@@ -169,14 +183,15 @@ jcode
 
 ```bash
 printf '{"command":"pip install fastapi"}' | JCODE_HOOK_TOOL_NAME=bash ./scripts/hooks/domain_purity_gate.py ; echo "exit=$?"
-uv run pytest -q
+just check
+just test
 ```
 
 Чеклист результата:
 
 - [ ] Команда проверки `domain_purity_gate.py` печатает причину блокировки и выводит `exit=2`.
-- [ ] Скрипт `pytest_feedback.sh` автоматически возвращает вывод `uv run pytest -q` при редактировании `.py`-файлов.
-- [ ] В `src/books_api/domain/__init__.py` оформлен аккуратный `__all__`, а все тесты проекта проходят.
+- [ ] Скрипт `quality_feedback.sh` автоматически возвращает вывод `just check && just test` при редактировании `.py`-файлов.
+- [ ] В `src/books_api/domain/__init__.py` оформлен аккуратный `__all__`, а `just check` и `just test` проходят без замечаний.
 
 ---
 

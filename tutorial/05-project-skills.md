@@ -75,9 +75,9 @@ description: >-
 ## 4. Чистота домена
 - В `src/books_api/domain/` нет импортов сетевых библиотек, БД, файлового ввода-вывода (`open`, `pathlib.Path.read_bytes`) или `print`.
 
-## 5. Матрица граничных тестов
+## 5. Матрица граничных тестов и ворота качества
 - На каждое найденное или уточнённое правило добавь отдельный параметризованный тест (`@pytest.mark.parametrize`) в `tests/`, проверяющий конкретный подкласс `DomainError`.
-- Заверши проверку прогоном `uv run pytest -q` и выведи таблицу: `Модуль | Проверенный инвариант | Статус`.
+- Заверши проверку обязательным прогоном `just check` и `just test` и выведи таблицу: `Модуль | Проверенный инвариант | Статус`.
 ```
 
 Обратите внимание на шапку YAML (`frontmatter` между `---`):
@@ -129,14 +129,15 @@ description: >-
 
 ```bash
 ls -la .jcode/skills/domain-invariants/SKILL.md
-uv run pytest -q
+just check
+just test
 ```
 
 Чеклист результата:
 
 - [ ] Файл `.jcode/skills/domain-invariants/SKILL.md` создан и отображается в `/skills`.
 - [ ] Коллекции внутри `Book` и `Reader` защищены от мутации снаружи, а строки из пробелов (`"   "`) отсекаются с `DomainError`.
-- [ ] В `tests/` добавлены параметризованные edge-case тесты (`@pytest.mark.parametrize`), и все они зелёные.
+- [ ] В `tests/` добавлены параметризованные edge-case тесты (`@pytest.mark.parametrize`), и оба прогона `just check` и `just test` зелёные.
 
 ---
 
