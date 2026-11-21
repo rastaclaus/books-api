@@ -15,3 +15,67 @@ books-api = "books_api:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+    "ty>=0.0.107",
+]
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--strict-markers --strict-config"
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # conflicts with ruff format
+    "ISC001", # conflicts with ruff format
+    "D203",   # conflicts with D211
+    "D213",   # conflicts with D212
+    "D",      # docstring rules are not enforced in this project
+    "CPY001", # no mandatory copyright headers
+    "RUF001", # Cyrillic characters are allowed in user-facing text
+    "RUF002",
+    "RUF003",
+    "EM101",  # concise messages in raise DomainError(...)
+    "EM102",
+    "TRY003",
+    "TC001",  # Python 3.14 (PEP 649) defers annotation evaluation
+    "TC002",
+    "TC003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/books_api/__init__.py" = ["T201"]
+"tests/**" = ["S101", "PLR2004", "SLF001", "FBT003", "INP001"]
+"tools/**" = ["EXE001", "INP001", "T201"]
+"scripts/**" = ["EXE001", "INP001", "T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["books_api"]
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.terminal]
+error-on-warning = true
+
+[tool.ty.rules]
+all = "error"
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+dynamic-function-decorator-return = "ignore"
