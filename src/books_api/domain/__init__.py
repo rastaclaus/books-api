@@ -1,5 +1,7 @@
 """Pure domain layer of the books catalog."""
 
+from books_api.domain.catalog import BookRepository, CatalogQuery, InMemoryBookRepository
+from books_api.domain.download import BookDownloaded, DownloadGrant, DownloadService
 from books_api.domain.entities import Author, Book, BookAsset, BookStatus
 from books_api.domain.errors import (
     DomainError,
@@ -19,11 +21,17 @@ __all__ = [
     "Author",
     "Book",
     "BookAsset",
+    "BookDownloaded",
     "BookFormat",
+    "BookRepository",
     "BookStatus",
+    "CatalogQuery",
     "DailyDownloadQuota",
     "DomainError",
+    "DownloadGrant",
+    "DownloadService",
     "DuplicateAssetError",
+    "InMemoryBookRepository",
     "InvalidBookStateError",
     "LanguageCode",
     "LicenseType",

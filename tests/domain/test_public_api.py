@@ -9,11 +9,17 @@ def test_domain_package_exports_errors() -> None:
         "Author",
         "Book",
         "BookAsset",
+        "BookDownloaded",
         "BookFormat",
+        "BookRepository",
         "BookStatus",
+        "CatalogQuery",
         "DailyDownloadQuota",
         "DomainError",
+        "DownloadGrant",
+        "DownloadService",
         "DuplicateAssetError",
+        "InMemoryBookRepository",
         "InvalidBookStateError",
         "LanguageCode",
         "LicenseType",
@@ -38,8 +44,14 @@ def test_exported_names_resolve_to_error_classes() -> None:
     assert domain.Author.__name__ == "Author"
     assert domain.Book.__name__ == "Book"
     assert domain.BookAsset.__name__ == "BookAsset"
+    assert domain.BookDownloaded.__name__ == "BookDownloaded"
     assert domain.BookFormat.__name__ == "BookFormat"
+    assert domain.BookRepository.__name__ == "BookRepository"
     assert domain.BookStatus.__name__ == "BookStatus"
+    assert domain.CatalogQuery.__name__ == "CatalogQuery"
+    assert domain.DownloadGrant.__name__ == "DownloadGrant"
+    assert domain.DownloadService.__name__ == "DownloadService"
+    assert domain.InMemoryBookRepository.__name__ == "InMemoryBookRepository"
     assert domain.DailyDownloadQuota.__name__ == "DailyDownloadQuota"
     assert domain.LanguageCode.__name__ == "LanguageCode"
     assert domain.ISBN.__name__ == "ISBN"
