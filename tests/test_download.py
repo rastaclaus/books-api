@@ -1,6 +1,6 @@
 """Tests for the download domain event, grant and service."""
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, date, datetime
 from typing import cast
@@ -131,6 +131,97 @@ def test_request_download_selects_the_requested_format_asset() -> None:
     assert grant.format is BookFormat.PDF
     assert grant.checksum == _PDF_CHECKSUM
     assert grant.event.format is BookFormat.PDF
+
+
+def test_request_bundle_returns_one_grant_per_format() -> None:
+    book = make_book(assets=(_EPUB_ASSET, _PDF_ASSET))
+
+    grants = DownloadService().request_bundle(book, make_reader(), (BookFormat.EPUB, BookFormat.PDF), (), _NOW)
+
+    assert tuple(grant.format for grant in grants) == (BookFormat.EPUB, BookFormat.PDF)
+    assert tuple(grant.checksum for grant in grants) == (_EPUB_CHECKSUM, _PDF_CHECKSUM)
+    assert [grant.quota_consumed for grant in grants] == [True, False]
+    assert all(grant.event.occurred_at is _NOW for grant in grants)
+    assert all(grant.license_notice == grants[0].license_notice for grant in grants)
+
+
+def test_request_bundle_preserves_requested_format_order() -> None:
+    book = make_book(assets=(_EPUB_ASSET, _PDF_ASSET))
+
+    grants = DownloadService().request_bundle(book, make_reader(), [BookFormat.PDF, BookFormat.EPUB], (), _NOW)
+
+    assert tuple(grant.format for grant in grants) == (BookFormat.PDF, BookFormat.EPUB)
+
+
+def test_request_bundle_redownload_does_not_consume_quota() -> None:
+    book = make_book(assets=(_EPUB_ASSET, _PDF_ASSET))
+
+    grants = DownloadService().request_bundle(
+        book,
+        make_reader(),
+        (BookFormat.EPUB, BookFormat.PDF),
+        ("book-1",),
+        _NOW,
+    )
+
+    assert [grant.quota_consumed for grant in grants] == [False, False]
+
+
+def test_request_bundle_consumes_at_most_one_quota_slot() -> None:
+    book = make_book(assets=(_EPUB_ASSET, _PDF_ASSET))
+
+    grants = DownloadService().request_bundle(book, make_reader(), (BookFormat.EPUB, BookFormat.PDF), (), _NOW)
+
+    assert sum(grant.quota_consumed for grant in grants) == 1
+
+
+def test_request_bundle_rejects_empty_formats() -> None:
+    with pytest.raises(ValidationError, match="at least one"):
+        DownloadService().request_bundle(make_book(), make_reader(), (), (), _NOW)
+
+
+def test_request_bundle_rejects_duplicate_formats() -> None:
+    book = make_book(assets=(_EPUB_ASSET, _PDF_ASSET))
+
+    with pytest.raises(ValidationError, match="unique"):
+        DownloadService().request_bundle(book, make_reader(), (BookFormat.EPUB, BookFormat.EPUB), (), _NOW)
+
+
+@pytest.mark.parametrize("formats", ["epub", None, 42, ["epub"], (None,)])
+def test_request_bundle_rejects_invalid_formats(formats: object) -> None:
+    with pytest.raises(ValidationError):
+        DownloadService().request_bundle(make_book(), make_reader(), cast("Sequence[BookFormat]", formats), (), _NOW)
+
+
+@pytest.mark.parametrize("status", [BookStatus.DRAFT, BookStatus.WITHDRAWN])
+def test_request_bundle_rejects_unavailable_book(*, status: BookStatus) -> None:
+    book = make_book(status=status, assets=(_EPUB_ASSET, _PDF_ASSET))
+
+    with pytest.raises(InvalidBookStateError, match="not available for download"):
+        DownloadService().request_bundle(book, make_reader(), (BookFormat.EPUB, BookFormat.PDF), (), _NOW)
+
+
+def test_request_bundle_rejects_book_without_requested_format() -> None:
+    book = make_book(assets=(_EPUB_ASSET,))
+
+    with pytest.raises(InvalidBookStateError, match="no asset in pdf format"):
+        DownloadService().request_bundle(book, make_reader(), (BookFormat.EPUB, BookFormat.PDF), (), _NOW)
+
+
+def test_request_bundle_rejects_suspended_reader() -> None:
+    book = make_book(assets=(_EPUB_ASSET, _PDF_ASSET))
+
+    with pytest.raises(ReaderSuspendedError, match="suspended"):
+        DownloadService().request_bundle(book, make_reader(is_suspended=True), (BookFormat.EPUB,), (), _NOW)
+
+
+def test_request_bundle_rejects_exhausted_quota() -> None:
+    reader = make_reader()
+    book = make_book(assets=(_EPUB_ASSET, _PDF_ASSET))
+    downloaded_today = make_downloaded_ids(reader.daily_download_limit)
+
+    with pytest.raises(QuotaExceededError, match="daily download limit"):
+        DownloadService().request_bundle(book, reader, (BookFormat.EPUB, BookFormat.PDF), downloaded_today, _NOW)
 
 
 def test_request_download_normalizes_grant_and_event_identifiers() -> None:

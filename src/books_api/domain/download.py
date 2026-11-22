@@ -1,8 +1,8 @@
 """Domain event, grant and service for free e-book downloads."""
 
 import re
-from collections.abc import Collection
-from dataclasses import dataclass
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from books_api.domain._checks import ensure_iterable, ensure_required_text, ensure_str
@@ -102,6 +102,28 @@ class DownloadService:
             quota_consumed=quota_consumed,
         )
 
+    def request_bundle(
+        self,
+        book: Book,
+        reader: Reader,
+        formats: Sequence[BookFormat],
+        downloaded_today: Collection[str],
+        now: datetime,
+    ) -> tuple[DownloadGrant, ...]:
+        """Return one grant per requested format of the same book.
+
+        Formats must be non-empty and unique. The daily quota counts distinct
+        books, not formats, so a bundle consumes at most one quota slot: the
+        first grant carries ``quota_consumed=True`` for a new book, while the
+        remaining grants report ``False`` so summing the flags never charges
+        the same book twice.
+        """
+        requested_formats = _normalize_bundle_formats(formats)
+        grants = tuple(self.request_download(book, reader, fmt, downloaded_today, now) for fmt in requested_formats)
+        if not grants[0].quota_consumed:
+            return grants
+        return (grants[0], *(replace(grant, quota_consumed=False) for grant in grants[1:]))
+
     @staticmethod
     def _validate_arguments(
         book: object,
@@ -144,3 +166,20 @@ def _normalize_checksum(checksum: object) -> str:
     if _SHA256_PATTERN.fullmatch(normalized_checksum) is None:
         raise ValidationError("Download checksum must be a 64-character SHA-256 hex digest")
     return normalized_checksum
+
+
+def _normalize_bundle_formats(formats: object) -> tuple[BookFormat, ...]:
+    if isinstance(formats, str | bytes | bytearray) or not isinstance(formats, Sequence):
+        raise ValidationError("Bundle formats must be a sequence of BookFormat members")
+    if not formats:
+        raise ValidationError("Bundle must request at least one format")
+
+    requested_formats: list[BookFormat] = []
+    for fmt in formats:
+        if not isinstance(fmt, BookFormat):
+            raise ValidationError("Bundle formats must contain only BookFormat members")
+        requested_formats.append(fmt)
+
+    if len(set(requested_formats)) != len(requested_formats):
+        raise ValidationError("Bundle formats must be unique")
+    return tuple(requested_formats)
