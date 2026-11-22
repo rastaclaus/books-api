@@ -1,6 +1,7 @@
 """Tests for the catalog entities and the book aggregate."""
 
 from dataclasses import FrozenInstanceError, replace
+from typing import cast
 
 import pytest
 
@@ -22,6 +23,7 @@ _EPUB_CHECKSUM = "a" * 64
 _ALT_CHECKSUM = "b" * 64
 _PDF_CHECKSUM = "c" * 64
 _MOBI_CHECKSUM = "d" * 64
+_BLANK_STRINGS = ["", " ", "\t\n", "\u00a0", "\u2003", "\u3000", "\u2028", "\u200b", "\ufeff"]
 
 
 def make_author(author_id: str = "author-1", full_name: str = "Jane Doe") -> Author:
@@ -66,16 +68,32 @@ def test_author_normalizes_id_and_full_name() -> None:
     assert author.full_name == "Jane Doe"
 
 
-@pytest.mark.parametrize("author_id", ["", " ", "\t\n"])
+@pytest.mark.parametrize("author_id", _BLANK_STRINGS)
 def test_author_rejects_empty_id(author_id: str) -> None:
     with pytest.raises(ValidationError, match="Author id"):
         Author(id=author_id, full_name="Jane Doe")
 
 
-@pytest.mark.parametrize("full_name", ["", " ", "\t\n"])
+@pytest.mark.parametrize("full_name", _BLANK_STRINGS)
 def test_author_rejects_empty_full_name(full_name: str) -> None:
     with pytest.raises(ValidationError, match="full name"):
         Author(id="author-1", full_name=full_name)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("id", None),
+        ("id", 1),
+        ("id", b"author-1"),
+        ("full_name", None),
+        ("full_name", 42),
+        ("full_name", ["Jane Doe"]),
+    ],
+)
+def test_author_rejects_non_string_fields(field: str, value: object) -> None:
+    with pytest.raises(ValidationError, match="must be a string"):
+        replace(make_author(), **{field: value})
 
 
 def test_author_is_frozen_and_slotted() -> None:
@@ -108,6 +126,18 @@ def test_book_asset_rejects_non_positive_size(size_bytes: int) -> None:
         make_asset(size_bytes=size_bytes)
 
 
+@pytest.mark.parametrize("size_bytes", [1.0, 1024.5, True, "1024", None])
+def test_book_asset_rejects_non_integer_size(size_bytes: object) -> None:
+    with pytest.raises(ValidationError, match="positive integer"):
+        replace(make_asset(), size_bytes=size_bytes)
+
+
+@pytest.mark.parametrize("book_format", ["epub", "pdf", 1, None])
+def test_book_asset_rejects_non_enum_format(book_format: object) -> None:
+    with pytest.raises(ValidationError, match="BookFormat"):
+        replace(make_asset(), format=book_format)
+
+
 @pytest.mark.parametrize(
     "checksum",
     [
@@ -123,6 +153,12 @@ def test_book_asset_rejects_non_positive_size(size_bytes: int) -> None:
 def test_book_asset_rejects_invalid_checksum(checksum: str) -> None:
     with pytest.raises(ValidationError, match="SHA-256"):
         make_asset(checksum=checksum)
+
+
+@pytest.mark.parametrize("checksum", [None, 1, b"a" * 64])
+def test_book_asset_rejects_non_string_checksum(checksum: object) -> None:
+    with pytest.raises(ValidationError, match="checksum must be a string"):
+        replace(make_asset(), checksum=checksum)
 
 
 def test_book_asset_is_frozen_and_slotted() -> None:
@@ -169,13 +205,13 @@ def test_book_normalizes_id_and_title() -> None:
     assert book.title == "Domain-Driven Design"
 
 
-@pytest.mark.parametrize("title", ["", " ", "\t\n"])
+@pytest.mark.parametrize("title", _BLANK_STRINGS)
 def test_book_rejects_empty_title(title: str) -> None:
     with pytest.raises(ValidationError, match="title"):
         make_book(title=title)
 
 
-@pytest.mark.parametrize("book_id", ["", " ", "\t\n"])
+@pytest.mark.parametrize("book_id", _BLANK_STRINGS)
 def test_book_rejects_empty_id(book_id: str) -> None:
     with pytest.raises(ValidationError, match="Book id"):
         make_book(book_id=book_id)
@@ -189,6 +225,11 @@ def test_book_rejects_missing_authors() -> None:
 def test_book_rejects_duplicate_author_ids() -> None:
     with pytest.raises(ValidationError, match="unique by id"):
         make_book(authors=(make_author("author-1"), make_author("author-1", "Other Name")))
+
+
+def test_book_rejects_duplicate_author_ids_after_normalization() -> None:
+    with pytest.raises(ValidationError, match="unique by id"):
+        make_book(authors=(make_author("author-1"), make_author("  author-1  ")))
 
 
 def test_book_allows_unicode_title_and_author_name() -> None:
@@ -205,6 +246,39 @@ def test_book_rejects_duplicate_asset_formats_on_creation() -> None:
         replace(make_book(), assets=assets)
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("id", 1, "Book id must be a string"),
+        ("title", None, "Book title must be a string"),
+        ("language", "en", "LanguageCode"),
+        ("license", "cc-by", "LicenseType"),
+        ("status", "published", "BookStatus"),
+        ("isbn", "9780306406157", "ISBN"),
+        ("withdrawal_reason", 42, "Withdrawal reason must be a string"),
+        ("authors", "Jane Doe", "iterable of Author"),
+        ("authors", ("Jane Doe",), "only Author"),
+        ("assets", "epub", "iterable of BookAsset"),
+        ("assets", ("epub",), "only BookAsset"),
+    ],
+)
+def test_book_rejects_invalid_composition(field: str, value: object, message: str) -> None:
+    with pytest.raises(ValidationError, match=message):
+        replace(make_book(), **{field: value})
+
+
+def test_book_copies_mutable_author_and_asset_collections() -> None:
+    authors = [make_author()]
+    assets = [make_asset()]
+    book = replace(make_book(), authors=authors, assets=assets)
+
+    authors.append(make_author("author-2", "John Doe"))
+    assets.append(make_asset(BookFormat.PDF, checksum=_PDF_CHECKSUM))
+
+    assert book.authors == (make_author(),)
+    assert book.assets == (make_asset(),)
+
+
 def test_book_rejects_published_status_without_assets() -> None:
     with pytest.raises(InvalidBookStateError, match="at least one asset"):
         replace(make_book(), status=BookStatus.PUBLISHED)
@@ -213,6 +287,12 @@ def test_book_rejects_published_status_without_assets() -> None:
 def test_book_rejects_withdrawn_status_without_reason() -> None:
     with pytest.raises(InvalidBookStateError, match="withdrawal reason"):
         replace(make_book(), status=BookStatus.WITHDRAWN)
+
+
+@pytest.mark.parametrize("reason", _BLANK_STRINGS)
+def test_book_rejects_withdrawn_status_with_blank_reason(reason: str) -> None:
+    with pytest.raises(InvalidBookStateError, match="withdrawal reason"):
+        replace(make_book(), status=BookStatus.WITHDRAWN, withdrawal_reason=reason)
 
 
 def test_book_rejects_withdrawal_reason_for_non_withdrawn_status() -> None:
@@ -268,6 +348,23 @@ def test_add_asset_rejects_duplicate_format_without_replacement() -> None:
 
     with pytest.raises(DuplicateAssetError, match="already has an asset"):
         book.add_asset(make_asset(checksum=_ALT_CHECKSUM))
+
+
+@pytest.mark.parametrize("asset", [None, "epub", {"format": "epub"}])
+def test_add_asset_rejects_non_asset(asset: object) -> None:
+    with pytest.raises(ValidationError, match="BookAsset instance"):
+        make_book().add_asset(cast("BookAsset", asset))
+
+
+@pytest.mark.parametrize("replace_existing", [1, "yes", None])
+def test_add_asset_rejects_non_boolean_replace_existing(replace_existing: object) -> None:
+    book = make_book().add_asset(make_asset())
+
+    with pytest.raises(ValidationError, match="replace_existing"):
+        book.add_asset(
+            make_asset(checksum=_ALT_CHECKSUM),
+            replace_existing=cast("bool", replace_existing),
+        )
 
 
 def test_add_asset_replaces_existing_format_explicitly() -> None:
@@ -381,12 +478,20 @@ def test_withdraw_normalizes_reason() -> None:
     assert withdrawn.withdrawal_reason == "Rights changed"
 
 
-@pytest.mark.parametrize("reason", ["", " ", "\t\n"])
+@pytest.mark.parametrize("reason", _BLANK_STRINGS)
 def test_withdraw_rejects_empty_reason(reason: str) -> None:
     published = make_book().add_asset(make_asset()).publish()
 
     with pytest.raises(ValidationError, match="reason"):
         published.withdraw(reason)
+
+
+@pytest.mark.parametrize("reason", [None, 42, b"Rights changed"])
+def test_withdraw_rejects_non_string_reason(reason: object) -> None:
+    published = make_book().add_asset(make_asset()).publish()
+
+    with pytest.raises(ValidationError, match="must be a string"):
+        published.withdraw(cast("str", reason))
 
 
 def test_withdraw_rejects_draft_book() -> None:
