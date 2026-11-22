@@ -4,6 +4,7 @@ import pytest
 
 from books_api.domain import (
     DomainError,
+    DuplicateAssetError,
     InvalidBookStateError,
     LicenseViolationError,
     QuotaExceededError,
@@ -11,6 +12,7 @@ from books_api.domain import (
 )
 
 _SPECIALIZED_ERRORS = [
+    DuplicateAssetError,
     InvalidBookStateError,
     LicenseViolationError,
     QuotaExceededError,
