@@ -20,3 +20,7 @@ class LicenseViolationError(DomainError):
 
 class QuotaExceededError(DomainError):
     """Raised when an operation would exceed an applicable quota."""
+
+
+class ValidationError(DomainError):
+    """Raised when a value violates the invariants of its domain type."""

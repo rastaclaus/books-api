@@ -7,12 +7,20 @@ from books_api.domain import (
     InvalidBookStateError,
     LicenseViolationError,
     QuotaExceededError,
+    ValidationError,
 )
+
+_SPECIALIZED_ERRORS = [
+    InvalidBookStateError,
+    LicenseViolationError,
+    QuotaExceededError,
+    ValidationError,
+]
 
 
 @pytest.mark.parametrize(
     "error_type",
-    [InvalidBookStateError, LicenseViolationError, QuotaExceededError],
+    _SPECIALIZED_ERRORS,
 )
 def test_specialized_error_inherits_from_domain_error(error_type: type[DomainError]) -> None:
     assert issubclass(error_type, DomainError)
@@ -20,7 +28,7 @@ def test_specialized_error_inherits_from_domain_error(error_type: type[DomainErr
 
 @pytest.mark.parametrize(
     "error_type",
-    [InvalidBookStateError, LicenseViolationError, QuotaExceededError],
+    _SPECIALIZED_ERRORS,
 )
 def test_specialized_error_is_not_domain_error_itself(error_type: type[DomainError]) -> None:
     assert error_type is not DomainError
@@ -28,7 +36,7 @@ def test_specialized_error_is_not_domain_error_itself(error_type: type[DomainErr
 
 @pytest.mark.parametrize(
     "error_type",
-    [InvalidBookStateError, LicenseViolationError, QuotaExceededError],
+    _SPECIALIZED_ERRORS,
 )
 def test_specialized_error_preserves_message(error_type: type[DomainError]) -> None:
     message = "invariant violated"
