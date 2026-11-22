@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "books-licenses": {
+      "command": "python3",
+      "args": [
+        "/home/artems/projects/tutor/books-api/tools/license_mcp.py"
+      ],
+      "env": {
+        "BOOKS_LICENSE_POLICY": "${BOOKS_LICENSE_POLICY:-strict}"
+      }
+    }
+  }
+}
