@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from typing import Self
 
+from books_api.domain._checks import ensure_iterable, ensure_positive_int, ensure_required_text
 from books_api.domain.errors import (
     QuotaExceededError,
     ReaderSuspendedError,
@@ -22,10 +23,13 @@ class DailyDownloadQuota:
     downloaded_book_ids: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
-        if self.limit <= 0:
-            raise ValidationError(f"Daily download limit must be positive, got {self.limit}")
+        ensure_positive_int(self.limit, f"Daily download limit must be a positive integer, got {self.limit!r}")
 
-        normalized_ids = frozenset(_normalize_book_id(book_id) for book_id in self.downloaded_book_ids)
+        raw_ids = ensure_iterable(
+            self.downloaded_book_ids,
+            "Downloaded book ids must be an iterable of book ids, not a string",
+        )
+        normalized_ids = frozenset(_normalize_book_id(book_id) for book_id in raw_ids)
         object.__setattr__(self, "downloaded_book_ids", normalized_ids)
 
     @property
@@ -44,8 +48,14 @@ class DailyDownloadQuota:
         return normalized_id in self.downloaded_book_ids or self.used < self.limit
 
     def register(self, book_id: str) -> Self:
-        """Return a new quota snapshot that includes the downloaded book."""
+        """Return a new quota snapshot that includes the downloaded book.
+
+        Registering a new book beyond the limit is rejected, while re-registering
+        an already downloaded book stays allowed.
+        """
         normalized_id = _normalize_book_id(book_id)
+        if not self.allows(normalized_id):
+            raise QuotaExceededError(f"Daily download limit of {self.limit} books has been reached")
         return replace(self, downloaded_book_ids=self.downloaded_book_ids | {normalized_id})
 
 
@@ -58,10 +68,12 @@ class Reader:
     is_suspended: bool = False
 
     def __post_init__(self) -> None:
-        normalized_id = self.id.strip()
-        if not normalized_id:
-            raise ValidationError("Reader id must not be empty")
-        object.__setattr__(self, "id", normalized_id)
+        object.__setattr__(self, "id", ensure_required_text(self.id, "Reader id"))
+
+        if not isinstance(self.is_verified, bool):
+            raise ValidationError("Reader is_verified flag must be a boolean")
+        if not isinstance(self.is_suspended, bool):
+            raise ValidationError("Reader is_suspended flag must be a boolean")
 
     @property
     def daily_download_limit(self) -> int:
@@ -72,9 +84,13 @@ class Reader:
 
     def quota_for_today(self, downloaded_book_ids: Iterable[str] = ()) -> DailyDownloadQuota:
         """Build today's download quota from the books already downloaded."""
+        raw_ids = ensure_iterable(
+            downloaded_book_ids,
+            "Downloaded book ids must be an iterable of book ids, not a string",
+        )
         return DailyDownloadQuota(
             limit=self.daily_download_limit,
-            downloaded_book_ids=frozenset(downloaded_book_ids),
+            downloaded_book_ids=frozenset(_normalize_book_id(book_id) for book_id in raw_ids),
         )
 
     def check_download_allowed(
@@ -99,8 +115,5 @@ class Reader:
             )
 
 
-def _normalize_book_id(book_id: str) -> str:
-    normalized_id = book_id.strip()
-    if not normalized_id:
-        raise ValidationError("Book id must not be empty")
-    return normalized_id
+def _normalize_book_id(book_id: object) -> str:
+    return ensure_required_text(book_id, "Book id")

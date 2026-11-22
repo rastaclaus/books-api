@@ -1,6 +1,6 @@
 """Tests for the reader entity and the daily anti-bot download quota."""
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
@@ -14,6 +14,7 @@ from books_api.domain import (
 
 _UNVERIFIED_DAILY_DOWNLOAD_LIMIT = 3
 _VERIFIED_DAILY_DOWNLOAD_LIMIT = 25
+_BLANK_STRINGS = ["", " ", "\t\n", "\u00a0", "\u2003", "\u3000", "\u2028", "\u200b", "\ufeff"]
 
 
 def make_reader(
@@ -56,10 +57,24 @@ def test_reader_normalizes_id() -> None:
     assert reader.id == "reader-1"
 
 
-@pytest.mark.parametrize("reader_id", ["", " ", "\t\n"])
+@pytest.mark.parametrize("reader_id", _BLANK_STRINGS)
 def test_reader_rejects_empty_id(reader_id: str) -> None:
     with pytest.raises(ValidationError, match="Reader id"):
         make_reader(reader_id=reader_id)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("id", 1, "Reader id must be a string"),
+        ("id", None, "Reader id must be a string"),
+        ("is_verified", 1, "is_verified flag must be a boolean"),
+        ("is_suspended", "yes", "is_suspended flag must be a boolean"),
+    ],
+)
+def test_reader_rejects_invalid_field_types(field: str, value: object, message: str) -> None:
+    with pytest.raises(ValidationError, match=message):
+        replace(make_reader(), **{field: value})
 
 
 def test_reader_and_quota_are_frozen_and_slotted() -> None:
@@ -88,6 +103,15 @@ def test_reader_builds_quota_for_today() -> None:
     assert quota.downloaded_book_ids == frozenset({"book-1", "book-2"})
 
 
+def test_reader_quota_for_today_copies_mutable_downloaded_ids() -> None:
+    downloaded_book_ids = ["book-1"]
+
+    quota = make_reader().quota_for_today(downloaded_book_ids)
+    downloaded_book_ids.append("book-2")
+
+    assert quota.downloaded_book_ids == frozenset({"book-1"})
+
+
 def test_quota_normalizes_and_deduplicates_downloaded_book_ids() -> None:
     quota = DailyDownloadQuota(
         limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT,
@@ -96,6 +120,18 @@ def test_quota_normalizes_and_deduplicates_downloaded_book_ids() -> None:
 
     assert quota.downloaded_book_ids == frozenset({"book-1", "book-2"})
     assert quota.used == 2
+
+
+def test_quota_copies_downloaded_ids_from_a_mutable_collection() -> None:
+    downloaded_book_ids = ["book-1"]
+
+    quota = replace(
+        DailyDownloadQuota(limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT),
+        downloaded_book_ids=downloaded_book_ids,
+    )
+    downloaded_book_ids.append("book-2")
+
+    assert quota.downloaded_book_ids == frozenset({"book-1"})
 
 
 def test_quota_remaining_never_becomes_negative() -> None:
@@ -157,19 +193,65 @@ def test_quota_register_keeps_existing_book_as_single_entry() -> None:
     assert updated.used == 1
 
 
+def test_quota_register_rejects_new_book_when_limit_is_reached() -> None:
+    quota = DailyDownloadQuota(
+        limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT,
+        downloaded_book_ids=frozenset(make_downloaded_ids(_UNVERIFIED_DAILY_DOWNLOAD_LIMIT)),
+    )
+
+    with pytest.raises(QuotaExceededError, match="Daily download limit"):
+        quota.register("new-book")
+
+
+def test_quota_register_allows_repeat_when_limit_is_reached() -> None:
+    downloaded_book_ids = make_downloaded_ids(_UNVERIFIED_DAILY_DOWNLOAD_LIMIT)
+    quota = DailyDownloadQuota(
+        limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT,
+        downloaded_book_ids=frozenset(downloaded_book_ids),
+    )
+
+    updated = quota.register(downloaded_book_ids[0])
+
+    assert updated.downloaded_book_ids == quota.downloaded_book_ids
+    assert updated.used == _UNVERIFIED_DAILY_DOWNLOAD_LIMIT
+
+
 @pytest.mark.parametrize("limit", [0, -1, -25])
 def test_quota_rejects_non_positive_limit(limit: int) -> None:
     with pytest.raises(ValidationError, match="positive"):
         DailyDownloadQuota(limit=limit)
 
 
-@pytest.mark.parametrize("book_id", ["", " ", "\t\n"])
+@pytest.mark.parametrize("limit", [1.0, True, "3", None])
+def test_quota_rejects_non_integer_limit(limit: object) -> None:
+    with pytest.raises(ValidationError, match="positive integer"):
+        replace(DailyDownloadQuota(limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT), limit=limit)
+
+
+@pytest.mark.parametrize("downloaded_book_ids", ["book-1", None, 1])
+def test_quota_rejects_non_iterable_downloaded_ids(downloaded_book_ids: object) -> None:
+    with pytest.raises(ValidationError, match="iterable of book ids"):
+        replace(
+            DailyDownloadQuota(limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT),
+            downloaded_book_ids=downloaded_book_ids,
+        )
+
+
+def test_quota_rejects_non_string_downloaded_book_id() -> None:
+    with pytest.raises(ValidationError, match="Book id must be a string"):
+        replace(
+            DailyDownloadQuota(limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT),
+            downloaded_book_ids=frozenset({1}),
+        )
+
+
+@pytest.mark.parametrize("book_id", _BLANK_STRINGS)
 def test_quota_rejects_empty_downloaded_book_id(book_id: str) -> None:
     with pytest.raises(ValidationError, match="Book id"):
         DailyDownloadQuota(limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT, downloaded_book_ids=frozenset({book_id}))
 
 
-@pytest.mark.parametrize("book_id", ["", " ", "\t\n"])
+@pytest.mark.parametrize("book_id", _BLANK_STRINGS)
 def test_quota_rejects_empty_book_id_in_allows_and_register(book_id: str) -> None:
     quota = DailyDownloadQuota(limit=_UNVERIFIED_DAILY_DOWNLOAD_LIMIT)
 
@@ -256,3 +338,13 @@ def test_reader_rejects_empty_book_id_before_quota_check() -> None:
 
     with pytest.raises(ValidationError, match="Book id"):
         reader.check_download_allowed("  ")
+
+
+def test_reader_quota_for_today_rejects_a_bare_string() -> None:
+    with pytest.raises(ValidationError, match="not a string"):
+        make_reader().quota_for_today("book-1")
+
+
+def test_check_download_allowed_rejects_a_bare_string_history() -> None:
+    with pytest.raises(ValidationError, match="not a string"):
+        make_reader().check_download_allowed("book-1", downloaded_today="book-1")
