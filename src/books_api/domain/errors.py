@@ -10,6 +10,10 @@ class DomainError(Exception):
     """Base class for all domain invariant violations."""
 
 
+class DuplicateAssetError(DomainError):
+    """Raised when a book already has an asset in the requested format."""
+
+
 class InvalidBookStateError(DomainError):
     """Raised when an operation is not allowed for the current book state."""
 
