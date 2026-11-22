@@ -10,6 +10,7 @@ from books_api.domain.errors import (
     ReaderSuspendedError,
     ValidationError,
 )
+from books_api.domain.license_policy import build_license_notice, resolve_anthology_license
 from books_api.domain.reader import DailyDownloadQuota, Reader
 from books_api.domain.value_objects import ISBN, BookFormat, LanguageCode, LicenseType
 
@@ -31,4 +32,6 @@ __all__ = [
     "Reader",
     "ReaderSuspendedError",
     "ValidationError",
+    "build_license_notice",
+    "resolve_anthology_license",
 ]

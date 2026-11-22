@@ -22,6 +22,8 @@ def test_domain_package_exports_errors() -> None:
         "Reader",
         "ReaderSuspendedError",
         "ValidationError",
+        "build_license_notice",
+        "resolve_anthology_license",
     ]
 
 
@@ -43,3 +45,5 @@ def test_exported_names_resolve_to_error_classes() -> None:
     assert domain.ISBN.__name__ == "ISBN"
     assert domain.LicenseType.__name__ == "LicenseType"
     assert domain.Reader.__name__ == "Reader"
+    assert domain.build_license_notice.__name__ == "build_license_notice"
+    assert domain.resolve_anthology_license.__name__ == "resolve_anthology_license"
