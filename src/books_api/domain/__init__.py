@@ -7,8 +7,10 @@ from books_api.domain.errors import (
     InvalidBookStateError,
     LicenseViolationError,
     QuotaExceededError,
+    ReaderSuspendedError,
     ValidationError,
 )
+from books_api.domain.reader import DailyDownloadQuota, Reader
 from books_api.domain.value_objects import ISBN, BookFormat, LanguageCode, LicenseType
 
 __all__ = [
@@ -18,6 +20,7 @@ __all__ = [
     "BookAsset",
     "BookFormat",
     "BookStatus",
+    "DailyDownloadQuota",
     "DomainError",
     "DuplicateAssetError",
     "InvalidBookStateError",
@@ -25,5 +28,7 @@ __all__ = [
     "LicenseType",
     "LicenseViolationError",
     "QuotaExceededError",
+    "Reader",
+    "ReaderSuspendedError",
     "ValidationError",
 ]

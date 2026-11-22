@@ -8,6 +8,7 @@ from books_api.domain import (
     InvalidBookStateError,
     LicenseViolationError,
     QuotaExceededError,
+    ReaderSuspendedError,
     ValidationError,
 )
 
@@ -16,6 +17,7 @@ _SPECIALIZED_ERRORS = [
     InvalidBookStateError,
     LicenseViolationError,
     QuotaExceededError,
+    ReaderSuspendedError,
     ValidationError,
 ]
 

@@ -26,5 +26,9 @@ class QuotaExceededError(DomainError):
     """Raised when an operation would exceed an applicable quota."""
 
 
+class ReaderSuspendedError(DomainError):
+    """Raised when a suspended reader attempts an action forbidden for them."""
+
+
 class ValidationError(DomainError):
     """Raised when a value violates the invariants of its domain type."""
