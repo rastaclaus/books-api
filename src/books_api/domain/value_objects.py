@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Self, override
 
+from books_api.domain._checks import ensure_str
 from books_api.domain.errors import LicenseViolationError, ValidationError
 
 _LANGUAGE_CODE_LENGTH = 2
@@ -36,7 +37,7 @@ class LanguageCode:
     value: str
 
     def __post_init__(self) -> None:
-        canonical = self.value.strip().lower()
+        canonical = ensure_str(self.value, "Language code must be a string").strip().lower()
         is_two_latin_letters = len(canonical) == _LANGUAGE_CODE_LENGTH and canonical.isascii() and canonical.isalpha()
         if not is_two_latin_letters:
             raise ValidationError(f"Language code must be exactly two Latin letters: {self.value!r}")
@@ -50,7 +51,7 @@ class ISBN:
     value: str
 
     def __post_init__(self) -> None:
-        canonical = _ISBN_SEPARATORS.sub("", self.value).upper()
+        canonical = _ISBN_SEPARATORS.sub("", ensure_str(self.value, "ISBN must be a string")).upper()
         _validate_isbn(canonical)
         object.__setattr__(self, "value", canonical)
 

@@ -54,11 +54,17 @@ def test_language_code_normalizes_case_and_whitespace(raw: str, expected: str) -
 
 @pytest.mark.parametrize(
     "raw",
-    ["", " ", "e", "eng", "e1", "12", "ру", "e_", "e n", "EN-US"],
+    ["", " ", "e", "eng", "e1", "12", "ру", "e_", "e n", "EN-US", "\u00a0", "\u200b"],
 )
 def test_language_code_rejects_non_two_latin_letters(raw: str) -> None:
     with pytest.raises(ValidationError, match="two Latin letters"):
         LanguageCode(raw)
+
+
+@pytest.mark.parametrize("raw", [None, 42, b"en", ["en"]])
+def test_language_code_rejects_non_string_value(raw: object) -> None:
+    with pytest.raises(ValidationError, match="must be a string"):
+        dataclasses.replace(LanguageCode("en"), value=raw)
 
 
 def test_language_code_validation_error_is_a_domain_error() -> None:
@@ -111,6 +117,9 @@ def test_isbn_accepts_and_canonicalizes_valid_values(raw: str, expected: str) ->
         "978030640615X",
         "not-an-isbn",
         "0306406152 extra",
+        "   ",
+        "\u00a0",
+        "\u200b",
     ],
 )
 def test_isbn_rejects_invalid_values(raw: str) -> None:
@@ -121,6 +130,12 @@ def test_isbn_rejects_invalid_values(raw: str) -> None:
 def test_isbn_rejects_wrong_length_with_message() -> None:
     with pytest.raises(ValidationError, match="10 or 13"):
         ISBN("123")
+
+
+@pytest.mark.parametrize("raw", [None, 123, b"0306406152", ["0306406152"]])
+def test_isbn_rejects_non_string_value(raw: object) -> None:
+    with pytest.raises(ValidationError, match="must be a string"):
+        dataclasses.replace(ISBN("0306406152"), value=raw)
 
 
 def test_isbn_equality_uses_canonical_value() -> None:
