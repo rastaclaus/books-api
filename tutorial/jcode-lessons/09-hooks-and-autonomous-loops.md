@@ -1,6 +1,6 @@
 # Урок 09. Lifecycle Hooks и автономные циклы `/poke`, `/improve`, `/refactor`
 
-[← Урок 08. Ревью и контроль завершения](08-review-autoreview-and-judge.md) | [Карта курса](README.md) | [Урок 10. Headless CLI, песочницы и панели →](10-headless-sandboxes-and-panels.md)
+[← Урок 08. Глубокое ревью и контроль завершения: `/review`, `/autoreview`, `/judge`, `/agents`](08-review-autoreview-and-judge.md) | [Карта курса](README.md) | [Урок 10. Неинтерактивный CLI `jcode run`, песочницы инструментов и живые панели →](10-headless-sandboxes-and-panels.md)
 
 ## Цель урока
 

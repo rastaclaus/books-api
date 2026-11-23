@@ -1,6 +1,6 @@
 # Урок 07. Параллельная разработка со Swarm
 
-[← Урок 06. Проектный MCP-сервер](06-project-mcp-server.md) | [Карта курса](README.md) | [Урок 08. Глубокое ревью и контроль завершения →](08-review-autoreview-and-judge.md)
+[← Урок 06. Проектный MCP-сервер в `.jcode/mcp.json`](06-project-mcp-server.md) | [Карта курса](README.md) | [Урок 08. Глубокое ревью и контроль завершения: `/review`, `/autoreview`, `/judge`, `/agents` →](08-review-autoreview-and-judge.md)
 
 ## Цель урока
 

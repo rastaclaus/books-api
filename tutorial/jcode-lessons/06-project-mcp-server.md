@@ -1,6 +1,6 @@
 # Урок 06. Проектный MCP-сервер в `.jcode/mcp.json`
 
-[← Урок 05. Проектные скиллы](05-project-skills.md) | [Карта курса](README.md) | [Урок 07. Параллельная разработка со Swarm →](07-parallel-swarm.md)
+[← Урок 05. Собственные проектные скиллы в `.jcode/skills/`](05-project-skills.md) | [Карта курса](README.md) | [Урок 07. Параллельная разработка со Swarm →](07-parallel-swarm.md)
 
 ## Цель урока
 

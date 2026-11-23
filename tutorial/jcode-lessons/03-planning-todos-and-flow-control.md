@@ -1,6 +1,6 @@
 # Урок 03. Планирование `/plan`, трекинг `/todos` и управление ходом на лету
 
-[← Урок 02. Проектные оверлеи и кэш](02-prompt-overlays-and-cache.md) | [Карта курса](README.md) | [Урок 04. Проектная память и сессии →](04-project-memory-and-sessions.md)
+[← Урок 02. Проектные оверлеи `.jcode/` и работа с prompt-кэшем](02-prompt-overlays-and-cache.md) | [Карта курса](README.md) | [Урок 04. Проектная память и управление сессиями →](04-project-memory-and-sessions.md)
 
 ## Цель урока
 

@@ -1,6 +1,6 @@
 # Урок 10. Неинтерактивный CLI `jcode run`, песочницы инструментов и живые панели
 
-[← Урок 09. Lifecycle Hooks и автономные циклы](09-hooks-and-autonomous-loops.md) | [Карта курса](README.md)
+[← Урок 09. Lifecycle Hooks и автономные циклы `/poke`, `/improve`, `/refactor`](09-hooks-and-autonomous-loops.md) | [Карта курса](README.md)
 
 ## Цель урока
 

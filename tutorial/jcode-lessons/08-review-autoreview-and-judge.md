@@ -1,6 +1,6 @@
 # Урок 08. Глубокое ревью и контроль завершения: `/review`, `/autoreview`, `/judge`, `/agents`
 
-[← Урок 07. Параллельная разработка со Swarm](07-parallel-swarm.md) | [Карта курса](README.md) | [Урок 09. Lifecycle Hooks и автономные циклы →](09-hooks-and-autonomous-loops.md)
+[← Урок 07. Параллельная разработка со Swarm](07-parallel-swarm.md) | [Карта курса](README.md) | [Урок 09. Lifecycle Hooks и автономные циклы `/poke`, `/improve`, `/refactor` →](09-hooks-and-autonomous-loops.md)
 
 ## Цель урока
 

@@ -1,6 +1,6 @@
 # Урок 05. Собственные проектные скиллы в `.jcode/skills/`
 
-[← Урок 04. Проектная память и сессии](04-project-memory-and-sessions.md) | [Карта курса](README.md) | [Урок 06. Проектный MCP-сервер →](06-project-mcp-server.md)
+[← Урок 04. Проектная память и управление сессиями](04-project-memory-and-sessions.md) | [Карта курса](README.md) | [Урок 06. Проектный MCP-сервер в `.jcode/mcp.json` →](06-project-mcp-server.md)
 
 ## Цель урока
 

@@ -1,6 +1,6 @@
 # Урок 01. Контракт проекта в `AGENTS.md` и инспекция контекста
 
-[← Назад к карте курса](README.md) | [Урок 02. Проектные оверлеи и prompt-кэш →](02-prompt-overlays-and-cache.md)
+[← Карта курса](README.md) | [Урок 02. Проектные оверлеи `.jcode/` и работа с prompt-кэшем →](02-prompt-overlays-and-cache.md)
 
 ## Цель урока
 

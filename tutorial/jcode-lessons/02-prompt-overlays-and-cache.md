@@ -1,6 +1,6 @@
 # Урок 02. Проектные оверлеи `.jcode/` и работа с prompt-кэшем
 
-[← Урок 01. Контракт в `AGENTS.md`](01-project-contract-and-context.md) | [Карта курса](README.md) | [Урок 03. Планирование и управление ходом →](03-planning-todos-and-flow-control.md)
+[← Урок 01. Контракт проекта в `AGENTS.md` и инспекция контекста](01-project-contract-and-context.md) | [Карта курса](README.md) | [Урок 03. Планирование `/plan`, трекинг `/todos` и управление ходом на лету →](03-planning-todos-and-flow-control.md)
 
 ## Цель урока
 
