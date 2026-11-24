@@ -1,5 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "formatter": true,
-  "instructions": ["docs/guidelines/domain-style.md"]
+  "instructions": ["docs/guidelines/domain-style.md"],
+  "experimental": {"todo": true}
 }
